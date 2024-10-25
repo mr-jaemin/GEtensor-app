@@ -72,6 +72,13 @@ def main():
             convert_to_b_vector(b_vector, num_dirs, num_t2, b_val, freq)
             bval_output, bvec_output = display_and_save_b_vector(b_vector, num_dirs, num_t2)
 
+            st.write("### b-value Summary:")
+            b_values = [int(b) for b in bval_output]
+            b_counter = Counter(b_values)
+            for b_value in sorted(b_counter):
+                spaces = ' ' * (8 - len(str(b_value)))
+                st.write(f"{spaces}b={b_value} x {b_counter[b_value]}")
+
             if verbose:
                 st.write("### bval Output:")
                 st.write(" ".join(bval_output))
