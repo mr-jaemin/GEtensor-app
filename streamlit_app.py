@@ -55,7 +55,7 @@ def display_and_save_b_vector(b_vector, num_dirs, num_t2):
     return bval_output, bvec_output
 
 def main():
-    st.title("GE Diffusion tensor File to bval/bvec Converter")
+    st.title("GE tensor to bval/bvec Converter")
     st.write("Upload a tensor file and provide the necessary arguments to convert it.")
 
     uploaded_file = st.file_uploader("Upload Tensor File", type=["txt", "dat"])
