@@ -2,7 +2,7 @@
 ## View/Convert GE tensor to bval/bvec
 by Jaemin Shin
 
-## See in action
+## See in action, How to run it
 [![Open in Streamlit](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://getensor.streamlit.app/)
 
 ## Screenshots
@@ -12,7 +12,7 @@ by Jaemin Shin
 
 
 
-### How to run it on your own machine
+### How to run it locally
 
 1. Install the requirements
 
