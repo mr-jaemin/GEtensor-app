@@ -1,13 +1,18 @@
 # 🎈 GEtensor-app
 
-GE diffusion tensor Web tools via Streamlit!
+# GE Diffusion tensor App (beta)
+## View/Convert GE tensor to bval/bvec
+by Jaemin Shin
 
+## See in action
 [![Open in Streamlit](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://getensor.streamlit.app/)
 
-![image](https://github.com/user-attachments/assets/02688e7a-926e-47b1-b9f7-8a331b989c1e)
+## Screenshots
+
+![image](https://github.com/user-attachments/assets/5ccc850a-29b1-4747-b2e1-46b7e45b61ba)
 
 
-![image](https://github.com/user-attachments/assets/4834c110-5746-4620-8b45-e3c36cab2b46)
+
 
 ### How to run it on your own machine
 
