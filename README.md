@@ -3,8 +3,6 @@
 by Jaemin Shin
 
 The **GEtensor-app** is a web-based tool created with Python and Streamlit to facilitate the viewing and conversion of GE diffusion tensor files in a user-friendly format. The app provides an intuitive summary of b-values, such as:
-
-Summary of b-values:
 - b= 0 x 8
 - b= 500 x 6
 - b= 1000 x 15
