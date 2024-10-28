@@ -7,7 +7,8 @@ by Jaemin Shin
 
 ## Screenshots
 
-![image](https://github.com/user-attachments/assets/5ccc850a-29b1-4747-b2e1-46b7e45b61ba)
+![image](https://github.com/user-attachments/assets/2fd22493-fc7e-4588-9782-abd4fd064a6c)
+
 
 
 
