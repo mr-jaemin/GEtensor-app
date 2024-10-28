@@ -3,6 +3,7 @@ import streamlit as st
 import numpy as np
 import math
 from collections import Counter
+import pandas as pd
 
 def read_JSON_info(json_file):
     # Load JSON data
@@ -31,6 +32,7 @@ def read_directions_from_file(file_content, num_dirs, num_t2):
     b_vector = np.zeros((num_dirs + num_t2, 4))
     internal_count = 0
     header_lines = []
+    raw_lines = []
 
     for line in lines:
         tokens = line.split()
@@ -39,17 +41,19 @@ def read_directions_from_file(file_content, num_dirs, num_t2):
 
         if tokens[0] == str(num_dirs):
             internal_count = 0
+            raw_lines = []
             continue
 
         if line.startswith('#'):
             header_lines.append(line)
 
         if len(tokens) > 1 and tokens[0] != "#" and internal_count < num_dirs:
+            raw_lines.append(line)
             internal_count += 1
             b_vecx, b_vecy, b_vecz = map(float, tokens[:3])
             b_vector[num_t2 + internal_count - 1, 1:] = [b_vecx, b_vecy, b_vecz]
 
-    return b_vector, header_lines
+    return b_vector, header_lines, raw_lines
 
 def convert_to_b_vector(b_vector, num_dirs, num_t2, b_val, freq):
     for idx in range(num_dirs + num_t2):
@@ -88,7 +92,6 @@ def initialize_streamlit_components():
             by Jaemin Shin, v1.0.20241028
             ''')
 
-    
     # File upload options
     uploaded_tensor_file = st.file_uploader("Upload GE tensor file (required*)", type=["txt", "dat"])
     uploaded_json = st.file_uploader("(optional) Upload JSON file from dcm2niix to automatically extract the necessary information", type=["json"])
@@ -113,7 +116,6 @@ def initialize_streamlit_components():
             ```json
             {
                 ...
-                "SoftwareVersions": "30\\LX\\SIGNA_LX1.MR30.1_R01_2319.b",
                 "NumberOfDiffusionDirectionGE": 102,
                 "NumberOfDiffusionT2GE": 2,
                 "TensorFileNumberGE": 4321,
@@ -123,8 +125,6 @@ def initialize_streamlit_components():
                 "ConversionSoftwareVersion": "v1.0.20230315"
             }
             ''')
-
-
 
     # Set default values in case JSON is not uploaded
     num_dirs, num_t2, freq = 6, 1, "RL"  # Default values
@@ -138,13 +138,13 @@ def initialize_streamlit_components():
             if num_dirs is not None:
                 st.write(f"Number of Diffusion Directions: <b>{num_dirs}</b> from JSON", unsafe_allow_html=True)
             else:
-                num_dirs = st.number_input("Number of Diffusion Directions", min_value=1, step=1, value=6, key='num_dirs')
+                num_dirs = st.number_input("Number of Diffusion Directions", min_value=6, step=1, value=6, key='num_dirs')
         
         with col2:
             if num_t2 is not None:
                 st.write(f"Number of T2: <b>{num_t2}</b> from JSON", unsafe_allow_html=True)
             else:
-                num_t2 = st.number_input("Number of T2", min_value=0, step=1, value=1, key='num_t2')
+                num_t2 = st.number_input("Number of T2", min_value=1, step=1, value=1, key='num_t2')
         
         if freq is not None:
             st.write(f"Frequency: <b>{freq}</b> from JSON", unsafe_allow_html=True)
@@ -173,7 +173,15 @@ def apply_custom_css():
         }
         .header-info {
             font-size: 12px;
-            color: gray;
+            font-family: monospace;
+        }
+        .raw-lines {
+            font-size: 12px;
+            font-family: monospace;
+        }
+        .small-font {
+            line-height: 1.0;
+            font-size: 13px;
             font-family: monospace;
         }
         </style>
@@ -186,20 +194,16 @@ def main():
     # Process tensor file if uploaded
     if uploaded_tensor_file is not None:
         file_content = uploaded_tensor_file.read().decode("utf-8")
-        verbose = st.checkbox("Verbose Output", key='verbose')
-        display_header = st.checkbox("Display header", key='display_header')
+        file_name_prefix = uploaded_tensor_file.name.split('.')[0]
+        file_name = uploaded_tensor_file.name
 
-        b_vector, header_lines = read_directions_from_file(file_content, num_dirs, num_t2)
+        b_vector, header_lines, raw_lines = read_directions_from_file(file_content, num_dirs, num_t2)
         convert_to_b_vector(b_vector, num_dirs, num_t2, b_val, freq)
         bval_output, bvec_output = display_and_save_b_vector(b_vector, num_dirs, num_t2)
 
         # Apply custom CSS
         apply_custom_css()
 
-        if display_header:
-            st.write("### Header Information:")
-            for header_line in header_lines:
-                st.markdown(f"<div class='header-info'>{header_line}</div>", unsafe_allow_html=True)
 
         st.write("### Summary of b-values:")
         b_values = [int(float(b)) for b in bval_output]
@@ -211,19 +215,44 @@ def main():
 
         st.markdown(b_summary_html, unsafe_allow_html=True)
 
-        if verbose:
-            st.write("### bval Output:")
-            st.write(" ".join(bval_output))
+        with st.expander("Display Header from " + file_name):
+            for header_line in header_lines:
+                st.markdown(f"<div class='header-info'>{header_line}</div>", unsafe_allow_html=True)
 
-            st.write("### bvec Output:")
-            for line in bvec_output:
-                st.write(line)
+        with st.expander("Display index/bval/bvec as a table"):
+            # Create a DataFrame from the b_vector array
+            table_data = {
+                "b-value": [int(row[0]) for row in b_vector],
+                "bvec_x": [float(('%.6f' % row[1]).replace('-0.000000', '0')) for row in b_vector],
+                "bvec_y": [float(('%.6f' % row[2]).replace('-0.000000', '0')) for row in b_vector],
+                "bvec_z": [float(('%.6f' % row[3]).replace('-0.000000', '0')) for row in b_vector]
+            }
 
-        file_name_prefix = uploaded_tensor_file.name.split('.')[0]
+            df = pd.DataFrame(table_data, index=range(1, len(b_vector) + 1))
+
+            # Convert the DataFrame to HTML and apply custom CSS
+            table_html = df.to_html(classes='small-font', escape=False)
+
+            # Display the table using custom CSS for smaller font size
+            st.markdown(table_html, unsafe_allow_html=True)
+
+        with st.expander("Raw Lines from File "+ file_name):
+            st.write(num_dirs)
+            for raw_line in raw_lines:
+                st.markdown(f"<div class='raw-lines'>{raw_line}</div>", unsafe_allow_html=True)
+
         download_bval_name = f"{file_name_prefix}_{num_t2}t2_{num_dirs}dir_b{b_val}.bval"
         st.download_button("Download bval file", " ".join(bval_output), download_bval_name, key='download_bval')
         download_bvec_name = f"{file_name_prefix}_{num_t2}t2_{num_dirs}dir_b{b_val}.bvec"
         st.download_button("Download bvec file", "\n".join(bvec_output), download_bvec_name, key='download_bvec')
+
+        with st.expander("Display bval/bvec files"):
+            st.write("bval Output:")
+            st.write(" ".join(bval_output))
+
+            st.write("bvec Output:")
+            for line in bvec_output:
+                st.write(line)
     else:
         st.error("Please upload a valid tensor file.")
 
