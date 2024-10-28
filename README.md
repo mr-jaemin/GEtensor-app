@@ -1,6 +1,4 @@
-# 🎈 GEtensor-app
-
-# GE Diffusion tensor App (beta)
+# 🎈 GE Diffusion tensor App (beta)
 ## View/Convert GE tensor to bval/bvec
 by Jaemin Shin
 
