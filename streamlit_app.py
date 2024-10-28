@@ -30,6 +30,7 @@ def read_directions_from_file(file_content, num_dirs, num_t2):
     lines = file_content.splitlines()
     b_vector = np.zeros((num_dirs + num_t2, 4))
     internal_count = 0
+    header_lines = []
 
     for line in lines:
         tokens = line.split()
@@ -40,12 +41,15 @@ def read_directions_from_file(file_content, num_dirs, num_t2):
             internal_count = 0
             continue
 
+        if line.startswith('#'):
+            header_lines.append(line)
+
         if len(tokens) > 1 and tokens[0] != "#" and internal_count < num_dirs:
             internal_count += 1
             b_vecx, b_vecy, b_vecz = map(float, tokens[:3])
             b_vector[num_t2 + internal_count - 1, 1:] = [b_vecx, b_vecy, b_vecz]
 
-    return b_vector
+    return b_vector, header_lines
 
 def convert_to_b_vector(b_vector, num_dirs, num_t2, b_val, freq):
     for idx in range(num_dirs + num_t2):
@@ -78,14 +82,49 @@ def display_and_save_b_vector(b_vector, num_dirs, num_t2):
     return bval_output, bvec_output
 
 def initialize_streamlit_components():
-    st.title("GE tensor to bval/bvec Converter (beta)")
-    st.write("Upload a JSON file to automatically extract the necessary information, or provide the values manually.")
+    st.title("GE Diffusion tensor App (beta)")
+    st.markdown('''
+            ## View/Convert GE tensor to bval/bvec
+            by Jaemin Shin, v1.0.20241028
+            ''')
 
+    
     # File upload options
     uploaded_tensor_file = st.file_uploader("Upload GE tensor file (required*)", type=["txt", "dat"])
-    uploaded_json = st.file_uploader("Upload JSON file from dcm2niix (optional)", type=["json"])
+    uploaded_json = st.file_uploader("(optional) Upload JSON file from dcm2niix to automatically extract the necessary information", type=["json"])
 
-    st.image("GEHC_UI.png", caption="Reference Image", use_column_width=True)
+    with st.expander("HOW-TO get the GE tensor file & required scan parameters"):
+        st.write("GEHC Diffusion Scan Parameter screen:")
+        st.image("GEHC_UI.png", use_column_width=True)
+        st.markdown('''
+
+            Locations of GE diffusion tensor files on scanner:
+
+            **- Prior to MR30.0:**
+            - All tensor file are saved in `/usr/g/bin`
+            
+            **- MR30.0 or later:**
+            - GE-preloaded tensor files are located in `/srv/nfs/psd/etc`
+            - User-provided tensor files should be placed in `/srv/nfs/psd/usr/etc`
+            - Precedence is given to the GE directory (`/srv/nfs/psd/etc`) when files with the same name exist in both locations
+            
+
+            **JSON sidecar from dcm2niix (v1.0.20220915+):**
+            ```json
+            {
+                ...
+                "SoftwareVersions": "30\\LX\\SIGNA_LX1.MR30.1_R01_2319.b",
+                "NumberOfDiffusionDirectionGE": 102,
+                "NumberOfDiffusionT2GE": 2,
+                "TensorFileNumberGE": 4321,
+                "PhaseEncodingDirection": "j",
+                ...
+                "ConversionSoftware": "dcm2niix",
+                "ConversionSoftwareVersion": "v1.0.20230315"
+            }
+            ''')
+
+
 
     # Set default values in case JSON is not uploaded
     num_dirs, num_t2, freq = 6, 1, "RL"  # Default values
@@ -132,6 +171,11 @@ def apply_custom_css():
             margin-bottom: 2px;
             font-family: monospace;
         }
+        .header-info {
+            font-size: 12px;
+            color: gray;
+            font-family: monospace;
+        }
         </style>
     """
     st.markdown(custom_css, unsafe_allow_html=True)
@@ -143,13 +187,19 @@ def main():
     if uploaded_tensor_file is not None:
         file_content = uploaded_tensor_file.read().decode("utf-8")
         verbose = st.checkbox("Verbose Output", key='verbose')
+        display_header = st.checkbox("Display header", key='display_header')
 
-        b_vector = read_directions_from_file(file_content, num_dirs, num_t2)
+        b_vector, header_lines = read_directions_from_file(file_content, num_dirs, num_t2)
         convert_to_b_vector(b_vector, num_dirs, num_t2, b_val, freq)
         bval_output, bvec_output = display_and_save_b_vector(b_vector, num_dirs, num_t2)
 
         # Apply custom CSS
         apply_custom_css()
+
+        if display_header:
+            st.write("### Header Information:")
+            for header_line in header_lines:
+                st.markdown(f"<div class='header-info'>{header_line}</div>", unsafe_allow_html=True)
 
         st.write("### Summary of b-values:")
         b_values = [int(float(b)) for b in bval_output]
