@@ -16,7 +16,7 @@ GE's diffusion gradient directions, including FSL bvec format, are rotation inva
 You may find this app particularly useful if you need:
 - An intuitive display of b-values from a tensor file.
 - Conversion of GE tensor data to FSL bval/bvec format.
-- A case when only tensor file id available, without access to valid DICOM files.
+- A case when only tensor file is available, without access to valid DICOM files.
 
 ## See in action, How to run it
 [![Open in Streamlit](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://getensor.streamlit.app/)
