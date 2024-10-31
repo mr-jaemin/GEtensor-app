@@ -86,10 +86,10 @@ def display_and_save_b_vector(b_vector, num_dirs, num_t2):
     return bval_output, bvec_output
 
 def initialize_streamlit_components():
-    st.title("GE Diffusion tensor App (beta)")
+    st.title("GE Diffusion tensor App Development (beta)")
     st.markdown('''
             ## View/Convert GE tensor to bval/bvec
-            by Jaemin Shin, v1.0.20241028
+            by Jaemin Shin, v1.0.20241031
 
             The **GEtensor-app** is a web-based tool created with Python and Streamlit to facilitate the viewing and conversion of GE diffusion tensor files in a user-friendly format. The app provides an intuitive summary of b-values. It also presents b-vectors in a structured table format, and allows users to convert the data to FSL's bval/bvec format for download.
             
