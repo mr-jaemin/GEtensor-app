@@ -6,7 +6,7 @@ from collections import Counter
 import pandas as pd
 
 def GEtensor_app_help_page():
-    st.title("GE Diffusion tensor App Development (beta)")
+    st.title("GE Diffusion tensor App (beta)")
     st.markdown('''
             ## View/Convert GE tensor to bval/bvec
             by Jaemin Shin, v1.0.20241101
