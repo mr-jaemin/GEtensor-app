@@ -5,6 +5,48 @@ import math
 from collections import Counter
 import pandas as pd
 
+def GEtensor_app_help_page():
+    st.title("GE Diffusion tensor App Development (beta)")
+    st.markdown('''
+            ## View/Convert GE tensor to bval/bvec
+            by Jaemin Shin, v1.0.20241031
+
+            The **GEtensor-app** is a web-based tool created with Python and Streamlit to facilitate the viewing and conversion of GE diffusion tensor files in a user-friendly format. The app provides an intuitive summary of b-values. It also presents b-vectors in a structured table format, and allows users to convert the data to FSL's bval/bvec format for download.
+            
+            GE's diffusion gradient directions, including FSL bvec format, are rotation invariant. This means that no matter the scanning           orientation—whether it's double-oblique, straight axial, head-first, or feet-first—the b-vectors stay the same, as long as the          frequency encoding direction doesn’t change.
+            
+            You may find this app particularly useful if you need:
+            - An intuitive display of b-values from a tensor file.
+            - Conversion of GE tensor data to FSL bval/bvec format.
+            - A case when only a tensor file is available, without access to valid DICOM files.
+            ''')
+    with st.expander("HOW-TO get the GE tensor file & required scan parameters"):
+        st.write("GEHC Diffusion Scan Parameter screen:")
+        st.image("GEHC_UI.png", use_column_width=True)
+        st.markdown('''
+            Locations of GE diffusion tensor files on scanner:
+            **- Prior to MR30.0:**
+            - All tensor file are saved in `/usr/g/bin`
+            
+            **- MR30.0 or later:**
+            - GE-preloaded tensor files are located in `/srv/nfs/psd/etc`
+            - User-provided tensor files should be placed in `/srv/nfs/psd/usr/etc`
+            - Precedence is given to the GE directory (`/srv/nfs/psd/etc`) when files with the same name exist in both locations
+            
+            **JSON sidecar from dcm2niix (v1.0.20220915+):**
+            ```json
+            {
+                ...
+                "NumberOfDiffusionDirectionGE": 102,
+                "NumberOfDiffusionT2GE": 2,
+                "TensorFileNumberGE": 4321,
+                "PhaseEncodingDirection": "j",
+                ...
+                "ConversionSoftware": "dcm2niix",
+                "ConversionSoftwareVersion": "v1.0.20230315"
+            }
+            ''')
+
 def read_JSON_info(json_file):
     # Load JSON data
     json_data = json.load(json_file)
@@ -24,9 +66,34 @@ def read_JSON_info(json_file):
 
     return num_dirs, num_t2, freq
 
+def read_tensor_file_initial(file_content):
+    # Read tensor file content and extract information
+    lines = file_content.splitlines()
+    num_dirs_list = []
+
+    i = 0
+    while i < len(lines):
+        line = lines[i].strip()
+        # Ignore comments and empty lines
+        if line and line[0] != '#':
+            try:
+                # Check if line has a single integer number
+                num_dirs = int(line)
+                num_dirs_list.append(num_dirs)
+                # Skip the number of lines equal to the integer found, plus this line itself
+                i += num_dirs + 1
+            except ValueError:
+                # Return None or an empty list if format is incorrect
+                print(f"Invalid format in tensor file at line {i + 1}")
+                return None
+        else:
+            i += 1
+    
+    return num_dirs_list
+
 def read_directions_from_file(file_content, num_dirs, num_t2):
-    num_dirs = num_dirs if num_dirs is not None else 6
-    num_t2 = num_t2 if num_t2 is not None else 1
+ #   num_dirs = num_dirs if num_dirs is not None else 6
+ #   num_t2 = num_t2 if num_t2 is not None else 1
 
     lines = file_content.splitlines()
     b_vector = np.zeros((num_dirs + num_t2, 4))
@@ -85,92 +152,6 @@ def display_and_save_b_vector(b_vector, num_dirs, num_t2):
     ]
     return bval_output, bvec_output
 
-def initialize_streamlit_components():
-    st.title("GE Diffusion tensor App Development (beta)")
-    st.markdown('''
-            ## View/Convert GE tensor to bval/bvec
-            by Jaemin Shin, v1.0.20241031
-
-            The **GEtensor-app** is a web-based tool created with Python and Streamlit to facilitate the viewing and conversion of GE diffusion tensor files in a user-friendly format. The app provides an intuitive summary of b-values. It also presents b-vectors in a structured table format, and allows users to convert the data to FSL's bval/bvec format for download.
-            
-            GE's diffusion gradient directions, including FSL bvec format, are rotation invariant. This means that no matter the scanning           orientation—whether it's double-oblique, straight axial, head-first, or feet-first—the b-vectors stay the same, as long as the          frequency encoding direction doesn’t change.
-            
-            You may find this app particularly useful if you need:
-            - An intuitive display of b-values from a tensor file.
-            - Conversion of GE tensor data to FSL bval/bvec format.
-            - A case when only a tensor file is available, without access to valid DICOM files.
-            ''')
-
-    # File upload options
-    uploaded_tensor_file = st.file_uploader("Upload GE tensor file (required*)", type=["txt", "dat"])
-    uploaded_json = st.file_uploader("(optional) Upload JSON file from dcm2niix to automatically extract the necessary information", type=["json"])
-
-    with st.expander("HOW-TO get the GE tensor file & required scan parameters"):
-        st.write("GEHC Diffusion Scan Parameter screen:")
-        st.image("GEHC_UI.png", use_column_width=True)
-        st.markdown('''
-
-            Locations of GE diffusion tensor files on scanner:
-
-            **- Prior to MR30.0:**
-            - All tensor file are saved in `/usr/g/bin`
-            
-            **- MR30.0 or later:**
-            - GE-preloaded tensor files are located in `/srv/nfs/psd/etc`
-            - User-provided tensor files should be placed in `/srv/nfs/psd/usr/etc`
-            - Precedence is given to the GE directory (`/srv/nfs/psd/etc`) when files with the same name exist in both locations
-            
-
-            **JSON sidecar from dcm2niix (v1.0.20220915+):**
-            ```json
-            {
-                ...
-                "NumberOfDiffusionDirectionGE": 102,
-                "NumberOfDiffusionT2GE": 2,
-                "TensorFileNumberGE": 4321,
-                "PhaseEncodingDirection": "j",
-                ...
-                "ConversionSoftware": "dcm2niix",
-                "ConversionSoftwareVersion": "v1.0.20230315"
-            }
-            ''')
-
-    # Set default values in case JSON is not uploaded
-    num_dirs, num_t2, freq = 6, 1, "RL"  # Default values
-
-    # Layout changes to put Number of Diffusion Directions and Number of T2 in one line
-    col1, col2 = st.columns(2)
-
-    if uploaded_json is not None:
-        num_dirs, num_t2, freq = read_JSON_info(uploaded_json)
-        with col1:
-            if num_dirs is not None:
-                st.write(f"Number of Diffusion Directions: <b>{num_dirs}</b> from JSON", unsafe_allow_html=True)
-            else:
-                num_dirs = st.number_input("Number of Diffusion Directions", min_value=6, step=1, value=6, key='num_dirs')
-        
-        with col2:
-            if num_t2 is not None:
-                st.write(f"Number of T2: <b>{num_t2}</b> from JSON", unsafe_allow_html=True)
-            else:
-                num_t2 = st.number_input("Number of T2", min_value=1, step=1, value=1, key='num_t2')
-        
-        if freq is not None:
-            st.write(f"Frequency: <b>{freq}</b> from JSON", unsafe_allow_html=True)
-        else:
-            freq = st.radio("Frequency", ["RL", "AP"], key='freq')
-    else:
-        # Allow users to edit the extracted values or manually input if JSON is not uploaded
-        with col1:
-            num_dirs = st.number_input("Number of Diffusion Directions", min_value=1, step=1, value=num_dirs, key='num_dirs')
-        with col2:
-            num_t2 = st.number_input("Number of T2", min_value=0, step=1, value=num_t2, key='num_t2')
-        freq = st.radio("Frequency", ["RL", "AP"], index=["RL", "AP"].index(freq), key='freq')
-
-    b_val = st.number_input("b Value", min_value=0, step=1, value=1000, key='b_val')
-
-    return uploaded_tensor_file, num_dirs, num_t2, b_val, freq
-
 def apply_custom_css():
     custom_css = """
         <style>
@@ -198,36 +179,72 @@ def apply_custom_css():
     st.markdown(custom_css, unsafe_allow_html=True)
 
 def main():
-    uploaded_tensor_file, num_dirs, num_t2, b_val, freq = initialize_streamlit_components()
+    GEtensor_app_help_page()
+    apply_custom_css()
 
-    # Process tensor file if uploaded
+    # File upload options
+    uploaded_tensor_file = st.file_uploader("Upload GE tensor file (required*)", type=["txt", "dat"])
+    uploaded_json = st.file_uploader("(optional) Upload JSON file from dcm2niix to automatically extract the necessary information", type=["json"])
+
     if uploaded_tensor_file is not None:
         file_content = uploaded_tensor_file.read().decode("utf-8")
         file_name_prefix = uploaded_tensor_file.name.split('.')[0]
         file_name = uploaded_tensor_file.name
 
+        # Read directories list from the file
+        num_dirs_list = read_tensor_file_initial(file_content)
+        #st.write(f"num_dirs_list: {num_dirs_list}")
+
+        # Conditionally set the initial value of num_dirs based on num_dirs_list
+        num_dirs = num_dirs_list[0] 
+    
+        # Layout changes to put Number of Diffusion Directions and Number of T2 in one line
+        col1, col2 = st.columns(2)
+    
+        if uploaded_json is not None:
+            num_dirs_json, num_t2, freq = read_JSON_info(uploaded_json)
+            if num_dirs_json is not None:
+                num_dirs = num_dirs_json
+            with col1:
+                if num_dirs is not None:
+                    st.write(f"Number of Diffusion Directions: <b>{num_dirs}</b> from JSON", unsafe_allow_html=True)
+                else:
+                    num_dirs = st.number_input("Number of Diffusion Directions", min_value=6, step=1, value=6, key='num_dirs', disabled=uploaded_tensor_file is None)
+            
+            with col2:
+                if num_t2 is not None:
+                    st.write(f"Number of T2: <b>{num_t2}</b> from JSON", unsafe_allow_html=True)
+                else:
+                    num_t2 = st.number_input("Number of T2", min_value=1, step=1, value=1, key='num_t2')
+            
+            if freq is not None:
+                st.write(f"Frequency: <b>{freq}</b> from JSON", unsafe_allow_html=True)
+            else:
+                freq = st.radio("Frequency", ["RL", "AP"], key='freq')
+        else:
+            # Allow users to edit the extracted values or manually input if JSON is not uploaded
+            with col1:
+                num_dirs = st.selectbox("Number of Diffusion Directions", options=num_dirs_list, index=0)
+            with col2:
+                num_t2 = st.number_input("Number of T2", min_value=1, step=1, value=1, key='num_t2')
+            freq = st.radio("Frequency", ["RL", "AP"], index=["RL", "AP"].index("RL"), key='freq')
+
+        b_val = st.number_input("b-Value", min_value=0, step=1, value=1000, key='b_val')
+        
         b_vector, header_lines, raw_lines = read_directions_from_file(file_content, num_dirs, num_t2)
         convert_to_b_vector(b_vector, num_dirs, num_t2, b_val, freq)
         bval_output, bvec_output = display_and_save_b_vector(b_vector, num_dirs, num_t2)
-
-        # Apply custom CSS
-        apply_custom_css()
-
 
         st.write("### Summary of b-values:")
         b_values = [int(float(b)) for b in bval_output]
         b_counter = Counter(b_values)
         b_summary_html = ""
-
         for b_value in sorted(b_counter):
             b_summary_html += f"<div class='tight-line-spacing'>b={b_value: >5} x {b_counter[b_value]}</div>"
-
         st.markdown(b_summary_html, unsafe_allow_html=True)
-
         with st.expander("Display Header from " + file_name):
             for header_line in header_lines:
                 st.markdown(f"<div class='header-info'>{header_line}</div>", unsafe_allow_html=True)
-
         with st.expander("Display index/bval/bvec as a table"):
             # Create a DataFrame from the b_vector array
             table_data = {
@@ -236,34 +253,27 @@ def main():
                 "bvec_y": [float(('%.6f' % row[2]).replace('-0.000000', '0')) for row in b_vector],
                 "bvec_z": [float(('%.6f' % row[3]).replace('-0.000000', '0')) for row in b_vector]
             }
-
             df = pd.DataFrame(table_data, index=range(1, len(b_vector) + 1))
-
             # Convert the DataFrame to HTML and apply custom CSS
             table_html = df.to_html(classes='small-font', escape=False)
-
             # Display the table using custom CSS for smaller font size
             st.markdown(table_html, unsafe_allow_html=True)
-
         with st.expander("Raw Lines from File "+ file_name):
             st.write(num_dirs)
             for raw_line in raw_lines:
                 st.markdown(f"<div class='raw-lines'>{raw_line}</div>", unsafe_allow_html=True)
-
         download_bval_name = f"{file_name_prefix}_{num_t2}t2_{num_dirs}dir_b{b_val}.bval"
         st.download_button("Download bval file", " ".join(bval_output), download_bval_name, key='download_bval')
         download_bvec_name = f"{file_name_prefix}_{num_t2}t2_{num_dirs}dir_b{b_val}.bvec"
         st.download_button("Download bvec file", "\n".join(bvec_output), download_bvec_name, key='download_bvec')
-
         with st.expander("Display bval/bvec files"):
             st.write("bval Output:")
             st.write(" ".join(bval_output))
-
             st.write("bvec Output:")
             for line in bvec_output:
-                st.write(line)
+                    st.write(line)
     else:
-        st.error("Please upload a valid tensor file.")
+        st.error("Please upload a valid tensor file.")        
 
 if __name__ == "__main__":
     main()
