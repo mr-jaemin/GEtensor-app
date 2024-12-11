@@ -22,7 +22,7 @@ def GEtensor_app_help_page():
             ''')
     with st.expander("HOW-TO get the GE tensor file & required scan parameters"):
         st.write("GEHC Diffusion Scan Parameter screen:")
-        st.image("GEHC_UI.png", use_column_width=True)
+        st.image("GEHC_UI.png", use_container_width=True)
         st.markdown('''
             Locations of GE diffusion tensor files on scanner:
             **- Prior to MR30.0:**
