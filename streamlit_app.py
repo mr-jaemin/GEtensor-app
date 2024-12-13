@@ -4,12 +4,14 @@ import numpy as np
 import math
 from collections import Counter
 import pandas as pd
+import os
+import glob
 
 def GEtensor_app_help_page():
     st.title("GE Diffusion tensor App (beta)")
     st.markdown('''
             ## View/Convert GE tensor to bval/bvec
-            by Jaemin Shin, v1.0.20241211
+            by Jaemin Shin, v1.0.20241213
 
             The **GEtensor-app** is a web-based tool created with Python and Streamlit to facilitate the viewing and conversion of GE diffusion tensor files in a user-friendly format. The app provides an intuitive summary of b-values. It also presents b-vectors in a structured table format, and allows users to convert the data to FSL's bval/bvec format for download.
             
@@ -183,98 +185,132 @@ def main():
     GEtensor_app_help_page()
     apply_custom_css()
 
-    # File upload options
-    uploaded_tensor_file = st.file_uploader("Upload GE tensor file (required*)", type=["txt", "dat"])
-    uploaded_json = st.file_uploader("(optional) Upload JSON file from dcm2niix to automatically extract the necessary information", type=["json"])
+    # Collect tensor files in the ./tensor directory
+    tensor_list = sorted([os.path.basename(file) for file in glob.glob('./tensor/tensor*.dat')])
 
+    default_index = tensor_list.index('tensor.dat') if 'tensor.dat' in tensor_list else 0
+
+    # Layout: left for file selection, right for file upload
+    col1, col2 = st.columns(2)
+
+    with col1:
+        selected_tensor_file = st.selectbox("Select tensor file", options=tensor_list, index=default_index)
+        
+    with col2:
+        uploaded_tensor_file = st.file_uploader("Upload tensor file", type=["txt", "dat"])
+
+    # Determine the file to use and extract details
     if uploaded_tensor_file is not None:
         file_content = uploaded_tensor_file.read().decode("utf-8")
         file_name_prefix = uploaded_tensor_file.name.split('.')[0]
         file_name = uploaded_tensor_file.name
+        st.success(f"File uploaded: {file_name}")
+    elif selected_tensor_file:
+        file_path = os.path.join('./tensor', selected_tensor_file)
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                file_content = f.read()
+            file_name_prefix = os.path.splitext(selected_tensor_file)[0]
+            file_name = selected_tensor_file
+            st.success(f"File selected: {file_name}")
+        except Exception as e:
+            st.error(f"Error reading the selected file: {e}")
+            file_content, file_name_prefix, file_name = None, None, None
+    else:
+        st.error("Please upload a valid tensor file or select one from the list.")
+        file_content, file_name_prefix, file_name = None, None, None
 
+    uploaded_json = st.file_uploader("(optional) Upload JSON file from dcm2niix to automatically extract the necessary information", type=["json"])
+
+    # Proceed only if file content is available
+    if file_content:
         # Read directories list from the file
         num_dirs_list = read_tensor_file_initial(file_content)
-        #st.write(f"num_dirs_list: {num_dirs_list}")
-
-        # Conditionally set the initial value of num_dirs based on num_dirs_list
-        num_dirs = num_dirs_list[0] 
-    
-        # Layout changes to put Number of Diffusion Directions and Number of T2 in one line
-        col1, col2 = st.columns(2)
-    
-        if uploaded_json is not None:
-            num_dirs_json, num_t2, freq = read_JSON_info(uploaded_json)
-            if num_dirs_json is not None:
-                num_dirs = num_dirs_json
-            with col1:
-                if num_dirs is not None:
-                    st.write(f"Number of Diffusion Directions: <b>{num_dirs}</b> from JSON", unsafe_allow_html=True)
-                else:
-                    num_dirs = st.number_input("Number of Diffusion Directions", min_value=6, step=1, value=6, key='num_dirs', disabled=uploaded_tensor_file is None)
-            
-            with col2:
-                if num_t2 is not None:
-                    st.write(f"Number of T2: <b>{num_t2}</b> from JSON", unsafe_allow_html=True)
-                else:
-                    num_t2 = st.number_input("Number of T2", min_value=1, step=1, value=1, key='num_t2')
-            
-            if freq is not None:
-                st.write(f"Frequency: <b>{freq}</b> from JSON", unsafe_allow_html=True)
-            else:
-                freq = st.radio("Frequency", ["RL", "AP"], key='freq')
+        if not num_dirs_list:
+            st.error("Failed to extract diffusion directions from the file.")
         else:
-            # Allow users to edit the extracted values or manually input if JSON is not uploaded
-            with col1:
-                num_dirs = st.selectbox("Number of Diffusion Directions", options=num_dirs_list, index=0)
-            with col2:
-                num_t2 = st.number_input("Number of T2", min_value=1, step=1, value=1, key='num_t2')
-            freq = st.radio("Frequency", ["RL", "AP"], index=["RL", "AP"].index("RL"), key='freq')
+            # Conditionally set the initial value of num_dirs based on num_dirs_list
+            num_dirs = num_dirs_list[0]
 
-        b_val = st.number_input("b-Value", min_value=0, step=1, value=1000, key='b_val')
-        
-        b_vector, header_lines, raw_lines = read_directions_from_file(file_content, num_dirs, num_t2)
-        convert_to_b_vector(b_vector, num_dirs, num_t2, b_val, freq)
-        bval_output, bvec_output = display_and_save_b_vector(b_vector, num_dirs, num_t2)
+            # Layout changes to put Number of Diffusion Directions and Number of T2 in one line
+            col1, col2 = st.columns(2)
 
-        st.write("### Summary of b-values:")
-        b_values = [int(float(b)) for b in bval_output]
-        b_counter = Counter(b_values)
-        b_summary_html = ""
-        for b_value in sorted(b_counter):
-            b_summary_html += f"<div class='tight-line-spacing'>b={b_value: >5} x {b_counter[b_value]}</div>"
-        st.markdown(b_summary_html, unsafe_allow_html=True)
-        with st.expander("Display Header from " + file_name):
-            for header_line in header_lines:
-                st.markdown(f"<div class='header-info'>{header_line}</div>", unsafe_allow_html=True)
-        with st.expander("Display index/bval/bvec as a table"):
-            # Create a DataFrame from the b_vector array
-            table_data = {
-                "b-value": [int(row[0]) for row in b_vector],
-                "bvec_x": [float(('%.6f' % row[1]).replace('-0.000000', '0')) for row in b_vector],
-                "bvec_y": [float(('%.6f' % row[2]).replace('-0.000000', '0')) for row in b_vector],
-                "bvec_z": [float(('%.6f' % row[3]).replace('-0.000000', '0')) for row in b_vector]
-            }
-            df = pd.DataFrame(table_data, index=range(1, len(b_vector) + 1))
-            # Convert the DataFrame to HTML and apply custom CSS
-            table_html = df.to_html(classes='small-font', escape=False)
-            # Display the table using custom CSS for smaller font size
-            st.markdown(table_html, unsafe_allow_html=True)
-        with st.expander("Raw Lines from File "+ file_name):
-            st.write(num_dirs)
-            for raw_line in raw_lines:
-                st.markdown(f"<div class='raw-lines'>{raw_line}</div>", unsafe_allow_html=True)
-        download_bval_name = f"{file_name_prefix}_{num_t2}t2_{num_dirs}dir_b{b_val}.bval"
-        st.download_button("Download bval file", " ".join(bval_output), download_bval_name, key='download_bval')
-        download_bvec_name = f"{file_name_prefix}_{num_t2}t2_{num_dirs}dir_b{b_val}.bvec"
-        st.download_button("Download bvec file", "\n".join(bvec_output), download_bvec_name, key='download_bvec')
-        with st.expander("Display bval/bvec files"):
-            st.write("bval Output:")
-            st.write(" ".join(bval_output))
-            st.write("bvec Output:")
-            for line in bvec_output:
+            if uploaded_json is not None:
+                num_dirs_json, num_t2, freq = read_JSON_info(uploaded_json)
+                if num_dirs_json is not None:
+                    num_dirs = num_dirs_json
+                with col1:
+                    if num_dirs is not None:
+                        st.write(f"Number of Diffusion Directions: <b>{num_dirs}</b> from JSON", unsafe_allow_html=True)
+                    else:
+                        num_dirs = st.number_input("Number of Diffusion Directions", min_value=6, step=1, value=6, key='num_dirs', disabled=uploaded_tensor_file is None)
+
+                with col2:
+                    if num_t2 is not None:
+                        st.write(f"Number of T2: <b>{num_t2}</b> from JSON", unsafe_allow_html=True)
+                    else:
+                        num_t2 = st.number_input("Number of T2", min_value=1, step=1, value=1, key='num_t2')
+
+                if freq is not None:
+                    st.write(f"Frequency: <b>{freq}</b> from JSON", unsafe_allow_html=True)
+                else:
+                    freq = st.radio("Frequency", ["RL", "AP"], key='freq')
+            else:
+                # Allow users to edit the extracted values or manually input if JSON is not uploaded
+                with col1:
+                    num_dirs = st.selectbox("Number of Diffusion Directions", options=num_dirs_list, index=0)
+                with col2:
+                    num_t2 = st.number_input("Number of T2", min_value=1, step=1, value=1, key='num_t2')
+                freq = st.radio("Frequency", ["RL", "AP"], index=["RL", "AP"].index("RL"), key='freq')
+
+            # Continue with the same logic for processing b-vectors and displaying outputs
+            b_val = st.number_input("b-Value", min_value=0, step=1, value=1000, key='b_val')
+            b_vector, header_lines, raw_lines = read_directions_from_file(file_content, num_dirs, num_t2)
+            convert_to_b_vector(b_vector, num_dirs, num_t2, b_val, freq)
+            bval_output, bvec_output = display_and_save_b_vector(b_vector, num_dirs, num_t2)
+
+            st.write("### Summary of b-values:")
+            b_values = [int(float(b)) for b in bval_output]
+            b_counter = Counter(b_values)
+            b_summary_html = ""
+            for b_value in sorted(b_counter):
+                b_summary_html += f"<div class='tight-line-spacing'>b={b_value: >5} x {b_counter[b_value]}</div>"
+            st.markdown(b_summary_html, unsafe_allow_html=True)
+
+            # Display headers, tables, and raw data
+            with st.expander("Display Header from " + file_name):
+                for header_line in header_lines:
+                    st.markdown(f"<div class='header-info'>{header_line}</div>", unsafe_allow_html=True)
+            with st.expander("Display index/bval/bvec as a table"):
+                table_data = {
+                    "b-value": [int(row[0]) for row in b_vector],
+                    "bvec_x": [float(('%.6f' % row[1]).replace('-0.000000', '0')) for row in b_vector],
+                    "bvec_y": [float(('%.6f' % row[2]).replace('-0.000000', '0')) for row in b_vector],
+                    "bvec_z": [float(('%.6f' % row[3]).replace('-0.000000', '0')) for row in b_vector]
+                }
+                df = pd.DataFrame(table_data, index=range(1, len(b_vector) + 1))
+                table_html = df.to_html(classes='small-font', escape=False)
+                st.markdown(table_html, unsafe_allow_html=True)
+            with st.expander("Raw Lines from File " + file_name):
+                st.write(num_dirs)
+                for raw_line in raw_lines:
+                    st.markdown(f"<div class='raw-lines'>{raw_line}</div>", unsafe_allow_html=True)
+
+            # Download buttons for bval and bvec files
+            download_bval_name = f"{file_name_prefix}_{num_t2}t2_{num_dirs}dir_b{b_val}.bval"
+            st.download_button("Download bval file", " ".join(bval_output), download_bval_name, key='download_bval')
+            download_bvec_name = f"{file_name_prefix}_{num_t2}t2_{num_dirs}dir_b{b_val}.bvec"
+            st.download_button("Download bvec file", "\n".join(bvec_output), download_bvec_name, key='download_bvec')
+
+            with st.expander("Display bval/bvec files"):
+                st.write("bval Output:")
+                st.write(" ".join(bval_output))
+                st.write("bvec Output:")
+                for line in bvec_output:
                     st.write(line)
     else:
-        st.error("Please upload a valid tensor file.")        
+        st.error("No valid tensor file to process.")
+   
 
 if __name__ == "__main__":
     main()
