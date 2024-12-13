@@ -187,12 +187,13 @@ def main():
 
     # Collect tensor files in the ./tensor directory
     tensor_list = [os.path.basename(file) for file in glob.glob('./tensor/tensor*.dat')]
+    default_index = tensor_list.index('tensor.dat') if 'tensor.dat' in tensor_list else 0
 
     # Layout: left for file selection, right for file upload
     col1, col2 = st.columns(2)
 
     with col1:
-        selected_tensor_file = st.selectbox("Select tensor file", options=tensor_list, index=0)
+        selected_tensor_file = st.selectbox("Select tensor file", options=tensor_list, index=default_index)
         
     with col2:
         uploaded_tensor_file = st.file_uploader("Upload tensor file", type=["txt", "dat"])
