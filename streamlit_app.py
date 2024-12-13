@@ -186,7 +186,8 @@ def main():
     apply_custom_css()
 
     # Collect tensor files in the ./tensor directory
-    tensor_list = [os.path.basename(file) for file in glob.glob('./tensor/tensor*.dat')]
+    tensor_list = sorted([os.path.basename(file) for file in glob.glob('./tensor/tensor*.dat')])
+
     default_index = tensor_list.index('tensor.dat') if 'tensor.dat' in tensor_list else 0
 
     # Layout: left for file selection, right for file upload
